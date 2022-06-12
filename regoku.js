@@ -34,7 +34,7 @@ var game = (function () {
 
             this.setDigit = function (r, c, d) {
                 if (this.cells[r][c].done) {
-                    console.log("Cell[" + (r + 1) + "][" + (c + 1) + "]" + this.cells[r][c].digit + "<-" + d);
+                    console.log("**Overwrite** Cell[" + (r + 1) + "][" + (c + 1) + "]" + this.cells[r][c].digit + "<-" + d);
                 } else {
                     console.log("Cell[" + (r + 1) + "][" + (c + 1) + "]=" + d);
                 }
@@ -42,8 +42,6 @@ var game = (function () {
                 this.cells[r][c].digit = d;
                 this.cells[r][c].candidates.clear();
                 this.cells[r][c].done = true;
-
-                this.eliminate( r, c, d);
             };
 
             this.eliminate = function (y, x, digit) {
@@ -112,17 +110,96 @@ var game = (function () {
                 return changed;
             }
 
-            this.singles = function() {
-                this.cells.forEach( 
-                    (cellsInRow, r, cells) => {
-                    cellsInRow.forEach(
-                        (cell, c, cells) => {
-                            cell.candidates(
-                                
-                            );     
-                    );
-                } )
+            // Each digit must appear once in each row, column and box
+            // For each digit, search each row/col/box and if digit 
+            // only appears in 1 location, set it
+            this.findSingles = function () {
+                var changed = false;
 
+                for (var digit = 1; digit < this.size + 1; digit++) {
+                    var rowLocCount, colLocCount, boxLocCount;
+                    var rowLocR, rowLocC;
+                    var colLocR, colLocC;
+                    var boxLocR, boxLocC;
+
+                    // iterate through with 2 counters, and derive r,c for each row, col box etc
+                    for (var a = 0; a < this.size; a++) {
+                        rowLocCount = 0;
+                        colLocCount = 0;
+                        boxLocCount = 0;
+
+                        for (var b = 0; b < this.size; b++) {
+                            // check this row (r=a, c=b)
+                            if (!this.cells[a][b].done) {
+                                if (this.cells[a][b].candidates.has(digit)) {
+                                    rowLocR = a;
+                                    rowLocC = b;
+                                    rowLocCount++;
+                                }
+                            }
+
+                            // check this col (r=b, c=a)
+                            if (!this.cells[b][a].done) {
+                                if (this.cells[b][a].candidates.has(digit)) {
+                                    colLocR = b;
+                                    colLocC = a;
+                                    colLocCount++;
+                                }
+                            }
+
+                            // check this box (r = b/3 + (a / 3) * 3, 
+                            //                 c = b%3 + (a % 3) * 3)
+                            var tmpR = Math.floor(b/3) + (Math.floor(a/3))*3;
+                            var tmpC = b%3 + (a%3)*3;
+                            //console.log(`(${a+1}, ${b+1}) => Box (${boxLocR+1}, ${boxLocC+1})`);
+                            if (!this.cells[tmpR][tmpC].done) {
+                                if (this.cells[tmpR][tmpC].candidates.has(digit)) {
+                                    boxLocR = tmpR;
+                                    boxLocC = tmpC;
+                                    boxLocCount++;
+                                }
+                            }
+                        }
+
+                        if (rowLocCount == 1) {
+                            console.log(`Row ${a + 1}, ${digit} must be in (${rowLocR + 1},${rowLocC + 1})`);
+
+                            this.setDigit(rowLocR, rowLocC, digit);
+
+                            this.eliminate(rowLocR, rowLocC, digit);
+
+                            changed = true;
+                        } else {
+                            //console.log(`Row ${a+1}, ${digit} can be in 1 of ${rowLocCount}`);
+                        }
+
+                        if (colLocCount == 1) {
+                            console.log(`Col ${a + 1}, ${digit} must be in (${colLocR + 1},${colLocC + 1})`);
+
+                            this.setDigit(colLocR, colLocC, digit);
+
+                            this.eliminate(colLocR, colLocC, digit);
+
+                            changed = true;
+                        } else {
+                            //console.log(`Col ${b+1}, ${digit} can be in 1 of ${colLocCount}`);
+                        }
+
+                        if (boxLocCount == 1) {
+                            console.log(`Box ${a+1}, ${digit} must be in (${boxLocR + 1},${boxLocC + 1})`);
+
+                            this.setDigit(boxLocR, boxLocC, digit);
+
+                            this.eliminate(boxLocR, boxLocC, digit);
+
+                            changed = true;
+                        } else {
+                            //console.log(`Box ${r+1}, ${digit} can be in 1 of ${boxLocCount}`);
+                        }
+                    }
+                }
+
+                return changed;
             }
 
             this.log = function () {
@@ -189,6 +266,19 @@ var uiController = (function () {
 var boardTests = [
     {
         "in": [
+            [3, 9, 0, 0, 0, 2, 0, 0, 0],
+            [0, 0, 7, 0, 0, 4, 8, 0, 0],
+            [0, 0, 4, 0, 5, 0, 1, 9, 6],
+            [6, 7, 2, 1, 0, 0, 0, 8, 4],
+            [0, 3, 1, 9, 4, 0, 0, 0, 0],
+            [0, 4, 0, 7, 0, 0, 6, 1, 0],
+            [9, 2, 0, 4, 0, 3, 5, 6, 0],
+            [0, 0, 3, 5, 0, 1, 4, 0, 9],
+            [0, 0, 0, 0, 6, 9, 0, 0, 0]
+        ]
+    },
+    {
+        "in": [
             [2, 9, 0, 0, 0, 0, 0, 1, 5],
             [8, 0, 0, 1, 7, 2, 0, 0, 6],
             [0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -198,19 +288,6 @@ var boardTests = [
             [0, 2, 0, 0, 0, 8, 0, 0, 0],
             [0, 0, 5, 6, 0, 0, 0, 0, 3],
             [7, 0, 0, 4, 0, 0, 0, 0, 0]
-        ]
-    },
-    {
-        "in": [
-            [3, 9, 0, 0, 0, 2, 0, 0, 0],
-            [0, 0, 7, 0, 0, 4, 8, 0, 0],
-            [0, 0, 4, 0, 5, 0, 1, 9, 6],
-            [6, 7, 2, 1, 0, 0, 0, 8, 4],
-            [0, 3, 1, 9, 4, 0, 0, 0, 0],
-            [0, 4, 0, 7, 0, 0, 6, 1, 0],
-            [9, 2, 0, 4, 0, 3, 5, 6, 0],
-            [0, 0, 3, 5, 0, 1, 4, 0, 9],
-            [0, 0, 0, 0, 6, 9, 0, 0, 0],
         ]
     },
 ];
@@ -255,8 +332,10 @@ var controller = (function (game, UICtrl) {
 
             board.log();
 
-            for (var c = 0; c < 5000; c++) {
+            for (var c = 0; c < 5; c++) {
                 board.eliminateAll();
+
+                board.findSingles();
             }
 
             board.log();
